@@ -1,0 +1,72 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f5f4f0;
+  color: #2c2c2a;
+}
+header.topbar {
+  background: #1d9e75;
+  color: #fff;
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+header.topbar a { color: #fff; text-decoration: none; margin-left: 16px; font-size: 14px; }
+.container { max-width: 960px; margin: 0 auto; padding: 24px; }
+.card {
+  background: #fff;
+  border: 1px solid #e0ded4;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+h1 { font-size: 22px; font-weight: 500; }
+h2 { font-size: 18px; font-weight: 500; }
+h3 { font-size: 16px; font-weight: 500; }
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cfcdc3;
+  width: 100%;
+}
+button {
+  background: #1d9e75;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  width: auto;
+  padding: 10px 18px;
+}
+button.secondary { background: #888780; }
+button.danger { background: #e24b4a; }
+button:hover { opacity: 0.9; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.menu-item img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; background: #eee; }
+.tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.tag.pending { background: #FAEEDA; color: #633806; }
+.tag.confirmed, .tag.preparing { background: #E6F1FB; color: #0C447C; }
+.tag.ready { background: #EAF3DE; color: #27500A; }
+.tag.completed { background: #E1F5EE; color: #085041; }
+.tag.rejected, .tag.cancelled { background: #FCEBEB; color: #791F1F; }
+.row { display: flex; gap: 12px; align-items: center; }
+.row.between { justify-content: space-between; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 13px; margin-bottom: 4px; color: #5f5e5a; }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs button { background: #e5e3d8; color: #2c2c2a; }
+.tabs button.active { background: #1d9e75; color: #fff; }
+.error-msg { color: #791F1F; font-size: 13px; margin-top: 6px; }
+.success-msg { color: #085041; font-size: 13px; margin-top: 6px; }
+table { width: 100%; border-collapse: collapse; }
+table th, table td { text-align: left; padding: 8px; border-bottom: 1px solid #e0ded4; font-size: 14px; }

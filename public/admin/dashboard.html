@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Admin Dashboard</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>👑 Admin Dashboard</strong>
+  <div><a href="/index.html" onclick="Session.clear()">Đăng xuất</a></div>
+</header>
+
+<div class="container" id="loginBox" style="max-width:400px">
+  <div class="card">
+    <h2>Đăng nhập Admin</h2>
+    <div class="field"><label>Email</label><input id="adminId"></div>
+    <div class="field"><label>Mật khẩu</label><input id="adminPass" type="password"></div>
+    <button onclick="adminLogin()">Đăng nhập</button>
+    <p id="loginMsg" class="error-msg"></p>
+  </div>
+</div>
+
+<div class="container" id="dashboard" style="display:none">
+  <div class="tabs">
+    <button class="active" onclick="showSection('revenue')">Doanh thu</button>
+    <button onclick="showSection('menu')">Món ăn</button>
+    <button onclick="showSection('ingredients')">Nguyên liệu</button>
+  </div>
+
+  <div id="sec-revenue" class="card"></div>
+
+  <div id="sec-menu" style="display:none">
+    <div class="card">
+      <h2>Thêm món mới</h2>
+      <div class="row">
+        <input id="newItemName" placeholder="Tên món">
+        <input id="newItemPrice" placeholder="Giá" type="number">
+        <input id="newItemCategory" placeholder="Category ID (1-5)" type="number" style="max-width:160px">
+        <button onclick="addMenuItem()">Thêm</button>
+      </div>
+    </div>
+    <div id="menuTable" class="card"></div>
+  </div>
+
+  <div id="sec-ingredients" style="display:none">
+    <div class="card">
+      <h2>Thêm nguyên liệu</h2>
+      <div class="row">
+        <input id="newIngName" placeholder="Tên nguyên liệu">
+        <input id="newIngQty" placeholder="Số lượng" type="number">
+        <input id="newIngUnit" placeholder="Đơn vị (kg, lon...)">
+        <input id="newIngMin" placeholder="Tối thiểu" type="number">
+        <button onclick="addIngredient()">Thêm</button>
+      </div>
+    </div>
+    <div id="ingredientTable" class="card"></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+async function adminLogin() {
+  const identifier = document.getElementById("adminId").value.trim();
+  const password = document.getElementById("adminPass").value;
+  try {
+    const user = await Api.post("/api/auth/login", { identifier, password });
+    if (user.role !== "ADMIN") throw new Error("Tài khoản này không phải Admin");
+    Session.setUser(user);
+    enterDashboard();
+  } catch (e) { document.getElementById("loginMsg").textContent = e.message; }
+}
+
+function enterDashboard() {
+  document.getElementById("loginBox").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  loadRevenue(); loadMenuTable(); loadIngredientTable();
+}
+
+function showSection(name) {
+  ["revenue", "menu", "ingredients"].forEach(s => {
+    document.getElementById("sec-" + s).style.display = s === name ? "block" : "none";
+  });
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+}
+
+async function loadRevenue() {
+  const rev = await Api.get("/api/admin/reports/revenue");
+  const top = await Api.get("/api/admin/reports/top-items");
+  document.getElementById("sec-revenue").innerHTML = `
+    <h2>Doanh thu & thống kê</h2>
+    <div class="grid">
+      <div><h3>Doanh thu hôm nay</h3><p style="font-size:20px">${money(rev.revenueToday)}</p></div>
+      <div><h3>Doanh thu tuần</h3><p style="font-size:20px">${money(rev.revenueThisWeek)}</p></div>
+      <div><h3>Tổng đơn</h3><p style="font-size:20px">${rev.totalOrders}</p></div>
+      <div><h3>Hoàn thành / Từ chối / Hủy</h3><p style="font-size:18px">${rev.completedOrders} / ${rev.rejectedOrders} / ${rev.cancelledOrders}</p></div>
+    </div>
+    <h3>Món bán chạy</h3>
+    <table><tr><th>Món</th><th>Đã bán</th></tr>
+      ${top.items.map(i => `<tr><td>${i.name}</td><td>${i.soldQuantity}</td></tr>`).join("")}
+    </table>`;
+}
+
+async function loadMenuTable() {
+  const res = await Api.get("/api/menu");
+  document.getElementById("menuTable").innerHTML = `
+    <table><tr><th>Tên</th><th>Giá</th><th>Trạng thái</th><th></th></tr>
+    ${res.items.map(i => `<tr>
+      <td>${i.name}</td><td>${money(i.price)}</td>
+      <td>${i.isAvailable ? "Còn hàng" : "Hết món"}</td>
+      <td>
+        <button class="secondary" onclick="toggleItem(${i.itemId}, ${!i.isAvailable})">${i.isAvailable ? "Đánh dấu hết" : "Mở bán lại"}</button>
+        <button class="danger" onclick="deleteItem(${i.itemId})">Xóa</button>
+      </td>
+    </tr>`).join("")}
+    </table>`;
+}
+
+async function addMenuItem() {
+  const name = document.getElementById("newItemName").value.trim();
+  const price = parseFloat(document.getElementById("newItemPrice").value);
+  const categoryId = parseInt(document.getElementById("newItemCategory").value);
+  if (!name || !price || !categoryId) { alert("Nhập đầy đủ thông tin"); return; }
+  await Api.post("/api/admin/menu", { name, price, categoryId, isAvailable: true });
+  loadMenuTable();
+}
+
+async function toggleItem(itemId, newState) {
+  await Api.post("/api/admin/menu/" + itemId + "/toggle", { isAvailable: newState });
+  loadMenuTable();
+}
+
+async function deleteItem(itemId) {
+  if (!confirm("Xóa món này?")) return;
+  await Api.del("/api/admin/menu/" + itemId);
+  loadMenuTable();
+}
+
+async function loadIngredientTable() {
+  const res = await Api.get("/api/admin/ingredients");
+  document.getElementById("ingredientTable").innerHTML = `
+    <table><tr><th>Tên</th><th>Số lượng</th><th>Tối thiểu</th><th></th></tr>
+    ${res.ingredients.map(i => `<tr>
+      <td>${i.name} ${i.lowStock ? '<span class="tag rejected">Sắp hết</span>' : ''}</td>
+      <td>${i.quantity} ${i.unit}</td>
+      <td>${i.minQuantity} ${i.unit}</td>
+      <td><button class="secondary" onclick="updateIngQty(${i.ingredientId}, ${i.quantity})">Cập nhật số lượng</button></td>
+    </tr>`).join("")}
+    </table>`;
+}
+
+async function addIngredient() {
+  const name = document.getElementById("newIngName").value.trim();
+  const quantity = parseFloat(document.getElementById("newIngQty").value);
+  const unit = document.getElementById("newIngUnit").value.trim();
+  const minQuantity = parseFloat(document.getElementById("newIngMin").value);
+  if (!name || !unit) { alert("Nhập đầy đủ thông tin"); return; }
+  await Api.post("/api/admin/ingredients", { name, quantity, unit, minQuantity });
+  loadIngredientTable();
+}
+
+async function updateIngQty(ingredientId, currentQty) {
+  const val = prompt("Nhập số lượng mới:", currentQty);
+  if (val === null) return;
+  await Api.put("/api/admin/ingredients/" + ingredientId + "/quantity", { quantity: parseFloat(val) });
+  loadIngredientTable();
+}
+
+if (Session.getUser() && Session.getUser().role === "ADMIN") enterDashboard();
+</script>
+</body>
+</html>

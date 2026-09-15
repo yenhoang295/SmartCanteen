@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Đăng nhập</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>🍱 Smart Canteen</strong>
+  <div><a href="/staff/dashboard.html">Nhân viên</a><a href="/admin/dashboard.html">Admin</a></div>
+</header>
+<div class="container" style="max-width:480px">
+  <div class="card">
+    <div class="tabs">
+      <button id="tabStudent" class="active" onclick="showTab('student')">Sinh viên</button>
+      <button id="tabLecturer" onclick="showTab('lecturer')">Giảng viên</button>
+      <button id="tabGuest" onclick="showTab('guest')">Khách vãng lai</button>
+    </div>
+
+    <!-- SINH VIEN / GIANG VIEN: dang nhap -->
+    <div id="panelLogin">
+      <h2>Đăng nhập</h2>
+      <div class="field"><label>MSSV / Email trường</label><input id="loginId" placeholder="VD: 22123456"></div>
+      <div class="field"><label>Mật khẩu</label><input id="loginPass" type="password"></div>
+      <button onclick="login()">Đăng nhập</button>
+      <p id="loginMsg" class="error-msg"></p>
+      <p style="font-size:13px">Chưa có tài khoản? <a href="#" onclick="toggleRegister()">Đăng ký ngay</a></p>
+    </div>
+
+    <div id="panelRegister" style="display:none">
+      <h2>Đăng ký</h2>
+      <div class="field"><label>Họ tên</label><input id="regName"></div>
+      <div class="field" id="fieldStudentId"><label>MSSV</label><input id="regStudentId"></div>
+      <div class="field" id="fieldClass"><label>Lớp</label><input id="regClass"></div>
+      <div class="field"><label>Email</label><input id="regEmail"></div>
+      <div class="field"><label>Số điện thoại</label><input id="regPhone"></div>
+      <div class="field"><label>Mật khẩu</label><input id="regPass" type="password"></div>
+      <button onclick="register()">Đăng ký</button>
+      <p id="regMsg" class="error-msg"></p>
+      <p style="font-size:13px"><a href="#" onclick="toggleRegister()">Quay lại đăng nhập</a></p>
+    </div>
+
+    <!-- KHACH VANG LAI: OTP -->
+    <div id="panelGuest" style="display:none">
+      <h2>Đăng nhập bằng OTP</h2>
+      <div class="field"><label>Số điện thoại</label><input id="guestPhone" placeholder="09xxxxxxxx"></div>
+      <button onclick="sendOtp()">Gửi mã OTP</button>
+      <div class="field" style="margin-top:12px"><label>Mã OTP</label><input id="guestOtp"></div>
+      <button onclick="verifyOtp()">Xác nhận</button>
+      <p id="guestMsg" class="error-msg"></p>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+let currentTab = "student";
+
+function showTab(tab) {
+  currentTab = tab;
+  document.getElementById("tabStudent").classList.toggle("active", tab === "student");
+  document.getElementById("tabLecturer").classList.toggle("active", tab === "lecturer");
+  document.getElementById("tabGuest").classList.toggle("active", tab === "guest");
+  document.getElementById("panelGuest").style.display = tab === "guest" ? "block" : "none";
+  document.getElementById("panelLogin").style.display = tab === "guest" ? "none" : "block";
+  document.getElementById("panelRegister").style.display = "none";
+  document.getElementById("fieldStudentId").style.display = tab === "student" ? "block" : "none";
+  document.getElementById("fieldClass").style.display = tab === "student" ? "block" : "none";
+}
+
+function toggleRegister() {
+  const showReg = document.getElementById("panelRegister").style.display === "none";
+  document.getElementById("panelRegister").style.display = showReg ? "block" : "none";
+  document.getElementById("panelLogin").style.display = showReg ? "none" : "block";
+}
+
+async function login() {
+  const identifier = document.getElementById("loginId").value.trim();
+  const password = document.getElementById("loginPass").value;
+  const msg = document.getElementById("loginMsg");
+  msg.textContent = "";
+  if (!identifier || !password) { msg.textContent = "Nhập đầy đủ thông tin"; return; }
+  try {
+    const user = await Api.post("/api/auth/login", { identifier, password });
+    Session.setUser(user);
+    window.location.href = "/menu.html";
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function register() {
+  const msg = document.getElementById("regMsg");
+  msg.textContent = "";
+  const role = currentTab === "lecturer" ? "LECTURER" : "STUDENT";
+  const body = {
+    role,
+    fullName: document.getElementById("regName").value.trim(),
+    email: document.getElementById("regEmail").value.trim(),
+    phone: document.getElementById("regPhone").value.trim(),
+    password: document.getElementById("regPass").value,
+    studentId: role === "STUDENT" ? document.getElementById("regStudentId").value.trim() : null,
+    className: role === "STUDENT" ? document.getElementById("regClass").value.trim() : null
+  };
+  if (!body.fullName || !body.password) { msg.textContent = "Nhập đầy đủ thông tin bắt buộc"; return; }
+  try {
+    await Api.post("/api/auth/register", body);
+    msg.className = "success-msg";
+    msg.textContent = "Đăng ký thành công, hãy đăng nhập.";
+    toggleRegister();
+  } catch (e) { msg.className = "error-msg"; msg.textContent = e.message; }
+}
+
+async function sendOtp() {
+  const phone = document.getElementById("guestPhone").value.trim();
+  const msg = document.getElementById("guestMsg");
+  try {
+    const res = await Api.post("/api/auth/guest/otp", { phone });
+    msg.className = "success-msg";
+    msg.textContent = "Đã gửi OTP. (Demo, OTP: " + res.otpDemo + ")";
+  } catch (e) { msg.className = "error-msg"; msg.textContent = e.message; }
+}
+
+async function verifyOtp() {
+  const phone = document.getElementById("guestPhone").value.trim();
+  const otp = document.getElementById("guestOtp").value.trim();
+  const msg = document.getElementById("guestMsg");
+  try {
+    const user = await Api.post("/api/auth/guest/verify", { phone, otp });
+    Session.setUser(user);
+    window.location.href = "/menu.html";
+  } catch (e) { msg.className = "error-msg"; msg.textContent = e.message; }
+}
+</script>
+</body>
+</html>

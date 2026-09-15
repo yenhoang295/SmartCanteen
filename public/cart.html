@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Giỏ hàng</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>🍱 Smart Canteen</strong>
+  <div><a href="/menu.html">Menu</a><a href="/orders.html">Đơn của tôi</a></div>
+</header>
+<div class="container" style="max-width:600px">
+  <h1>Giỏ hàng</h1>
+  <div id="cartList"></div>
+
+  <div class="card" id="checkoutBox" style="display:none">
+    <div class="field">
+      <label>Chọn khung giờ nhận món</label>
+      <select id="slotSelect">
+        <option value="11:00|11:15">11:00 - 11:15</option>
+        <option value="11:15|11:30">11:15 - 11:30</option>
+        <option value="11:30|11:45">11:30 - 11:45</option>
+        <option value="11:45|12:00">11:45 - 12:00</option>
+        <option value="12:00|12:15">12:00 - 12:15</option>
+        <option value="12:15|12:30">12:15 - 12:30</option>
+        <option value="12:30|12:45">12:30 - 12:45</option>
+        <option value="12:45|13:00">12:45 - 13:00</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Phương thức thanh toán</label>
+      <select id="paymentSelect">
+        <option value="MOMO">Ví MoMo</option>
+        <option value="QR">QR chuyển khoản</option>
+      </select>
+    </div>
+    <div class="row between"><strong>Tổng tiền</strong><strong id="totalAmount"></strong></div>
+    <button style="margin-top:12px;width:100%" onclick="placeOrder()">Đặt hàng</button>
+    <p id="orderMsg" class="error-msg"></p>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+const user = Session.requireLogin();
+
+function render() {
+  const items = Cart.get();
+  const list = document.getElementById("cartList");
+  if (items.length === 0) {
+    list.innerHTML = '<p>Giỏ hàng trống. <a href="/menu.html">Chọn món ngay</a></p>';
+    document.getElementById("checkoutBox").style.display = "none";
+    return;
+  }
+  list.innerHTML = items.map((it, idx) => `
+    <div class="card row between">
+      <div>
+        <strong>${it.name}</strong> ${it.note ? '<span style="color:#5f5e5a;font-size:13px"> - ' + it.note + '</span>' : ''}
+        <div style="font-size:13px;color:#5f5e5a">${money(it.price)} x ${it.quantity}</div>
+      </div>
+      <div class="row">
+        <strong>${money(it.price * it.quantity)}</strong>
+        <button class="danger" onclick="removeItem(${idx})">Xóa</button>
+      </div>
+    </div>`).join("");
+  document.getElementById("checkoutBox").style.display = "block";
+  document.getElementById("totalAmount").textContent = money(Cart.total());
+}
+
+function removeItem(idx) {
+  const items = Cart.get();
+  items.splice(idx, 1);
+  Cart.save(items);
+  render();
+}
+
+async function placeOrder() {
+  const msg = document.getElementById("orderMsg");
+  msg.textContent = "";
+  const [slotStart, slotEnd] = document.getElementById("slotSelect").value.split("|");
+  const paymentMethod = document.getElementById("paymentSelect").value;
+  const items = Cart.get().map(i => ({ itemId: i.itemId, quantity: i.quantity, note: i.note }));
+  try {
+    const order = await Api.post("/api/orders", {
+      userId: user.userId, items, slotStart, slotEnd, paymentMethod
+    });
+    Cart.clear();
+    window.location.href = "/orders.html?highlight=" + order.orderId;
+  } catch (e) { msg.textContent = e.message; }
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Menu</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>🍱 Smart Canteen</strong>
+  <div>
+    <a href="/menu.html">Menu</a>
+    <a href="/cart.html">Giỏ hàng (<span id="cartCount">0</span>)</a>
+    <a href="/orders.html">Đơn của tôi</a>
+    <a href="#" onclick="logout()">Đăng xuất</a>
+  </div>
+</header>
+<div class="container">
+  <div class="row" style="margin-bottom:16px">
+    <input id="searchBox" placeholder="Tìm món (vd: mì, cơm...)" oninput="loadMenu()">
+    <select id="categorySelect" onchange="loadMenu()"><option value="">Tất cả danh mục</option></select>
+  </div>
+  <div id="menuGrid" class="grid"></div>
+</div>
+
+<!-- Modal chi tiet mon -->
+<div id="detailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
+  <div class="card" style="max-width:400px;width:90%" id="detailContent"></div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+Session.requireLogin();
+document.getElementById("cartCount").textContent = Cart.get().length;
+
+let selectedItem = null;
+
+async function loadCategories() {
+  const res = await Api.get("/api/menu/categories");
+  const sel = document.getElementById("categorySelect");
+  res.categories.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.categoryId; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+async function loadMenu() {
+  const q = document.getElementById("searchBox").value.trim();
+  const categoryId = document.getElementById("categorySelect").value;
+  let url = "/api/menu?";
+  if (q) url += "q=" + encodeURIComponent(q) + "&";
+  if (categoryId) url += "categoryId=" + categoryId;
+  const res = await Api.get(url);
+  const grid = document.getElementById("menuGrid");
+  grid.innerHTML = "";
+  res.items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "card menu-item";
+    div.innerHTML = `
+      <img src="${item.imageUrl || 'https://placehold.co/300x160?text=' + encodeURIComponent(item.name)}">
+      <h3>${item.name}</h3>
+      <p style="color:#5f5e5a;font-size:13px">${item.description || ""}</p>
+      <div class="row between">
+        <strong>${money(item.price)}</strong>
+        ${item.isAvailable ? '<button onclick="openDetail(' + item.itemId + ')">Chọn</button>' : '<span class="tag rejected">Hết món</span>'}
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+async function openDetail(itemId) {
+  selectedItem = await Api.get("/api/menu/" + itemId);
+  document.getElementById("detailContent").innerHTML = `
+    <h2>${selectedItem.name}</h2>
+    <p>${selectedItem.description || ""}</p>
+    <p><strong>${money(selectedItem.price)}</strong></p>
+    <div class="field"><label>Số lượng</label>
+      <div class="row"><button class="secondary" onclick="changeQty(-1)">-</button>
+      <input id="qtyInput" value="1" style="text-align:center" readonly>
+      <button class="secondary" onclick="changeQty(1)">+</button></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><textarea id="noteInput" placeholder="VD: không hành, ít cay"></textarea></div>
+    <div class="row">
+      <button onclick="addToCart()">Thêm vào giỏ hàng</button>
+      <button class="secondary" onclick="closeDetail()">Đóng</button>
+    </div>`;
+  document.getElementById("detailModal").style.display = "flex";
+}
+
+function changeQty(delta) {
+  const input = document.getElementById("qtyInput");
+  input.value = Math.max(1, parseInt(input.value) + delta);
+}
+
+function addToCart() {
+  const qty = parseInt(document.getElementById("qtyInput").value);
+  const note = document.getElementById("noteInput").value.trim();
+  Cart.add({ itemId: selectedItem.itemId, name: selectedItem.name, price: selectedItem.price, quantity: qty, note });
+  document.getElementById("cartCount").textContent = Cart.get().length;
+  closeDetail();
+}
+
+function closeDetail() { document.getElementById("detailModal").style.display = "none"; }
+function logout() { Session.clear(); window.location.href = "/index.html"; }
+
+loadCategories();
+loadMenu();
+</script>
+</body>
+</html>

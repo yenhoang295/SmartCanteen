@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Staff Dashboard</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>🛠️ Staff Dashboard</strong>
+  <div><a href="/index.html" onclick="logout()">Đăng xuất</a></div>
+</header>
+
+<div class="container" id="loginBox" style="max-width:400px">
+  <div class="card">
+    <h2>Đăng nhập nhân viên</h2>
+    <div class="field"><label>Email</label><input id="staffId"></div>
+    <div class="field"><label>Mật khẩu</label><input id="staffPass" type="password"></div>
+    <button onclick="staffLogin()">Đăng nhập</button>
+    <p id="loginMsg" class="error-msg"></p>
+  </div>
+</div>
+
+<div class="container" id="dashboard" style="display:none">
+  <div class="card">
+    <h2>Kiểm tra mã nhận hàng</h2>
+    <div class="row">
+      <input id="pickupCodeInput" placeholder="VD: S123456">
+      <button onclick="verifyPickup()">Xác nhận & giao món</button>
+    </div>
+    <p id="pickupMsg"></p>
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <h2>Đơn hàng</h2>
+      <select id="statusFilter" onchange="loadOrders()">
+        <option value="PENDING">Đơn mới (chờ xác nhận)</option>
+        <option value="CONFIRMED">Đã xác nhận</option>
+        <option value="PREPARING">Đang chuẩn bị</option>
+        <option value="READY">Sẵn sàng nhận</option>
+      </select>
+    </div>
+    <div id="orderList"></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+function logout() { Session.clear(); }
+
+async function staffLogin() {
+  const identifier = document.getElementById("staffId").value.trim();
+  const password = document.getElementById("staffPass").value;
+  try {
+    const user = await Api.post("/api/staff/login", { identifier, password });
+    Session.setUser(user);
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    loadOrders();
+  } catch (e) { document.getElementById("loginMsg").textContent = e.message; }
+}
+
+async function loadOrders() {
+  const status = document.getElementById("statusFilter").value;
+  const res = await Api.get("/api/staff/orders?status=" + status);
+  const list = document.getElementById("orderList");
+  if (res.orders.length === 0) { list.innerHTML = "<p>Không có đơn nào.</p>"; return; }
+  list.innerHTML = res.orders.map(o => `
+    <div class="card">
+      <div class="row between">
+        <strong>Đơn #${o.orderCode}</strong>
+        <span class="tag ${o.status.toLowerCase()}">${statusLabel(o.status)}</span>
+      </div>
+      <p style="font-size:14px">Khách: ${o.customerName || '(khách vãng lai)'} · ${o.customerRole} · Mã nhận: <strong>${o.pickupCode}</strong></p>
+      <p style="font-size:14px">Khung giờ: ${o.slotStart} - ${o.slotEnd}</p>
+      <ul style="font-size:14px;padding-left:18px">
+        ${o.items.map(it => `<li>${it.itemName} x ${it.quantity} ${it.note ? '(' + it.note + ')' : ''}</li>`).join("")}
+      </ul>
+      <div class="row between">
+        <strong>${money(o.totalAmount)}</strong>
+        <div class="row">${actionButtons(o)}</div>
+      </div>
+      <p id="checkMsg-${o.orderId}"></p>
+    </div>`).join("");
+}
+
+function actionButtons(o) {
+  if (o.status === "PENDING") {
+    return `<button onclick="checkAndAccept(${o.orderId})">Kiểm tra & nhận đơn</button>
+            <button class="danger" onclick="rejectOrder(${o.orderId})">Từ chối</button>`;
+  }
+  if (o.status === "CONFIRMED") return `<button onclick="setStatus(${o.orderId}, 'PREPARING')">Bắt đầu chuẩn bị</button>`;
+  if (o.status === "PREPARING") return `<button onclick="setStatus(${o.orderId}, 'READY')">Đã sẵn sàng</button>`;
+  return "";
+}
+
+async function checkAndAccept(orderId) {
+  const check = await Api.get("/api/staff/orders/" + orderId + "/check");
+  const msgEl = document.getElementById("checkMsg-" + orderId);
+  if (!check.enough) {
+    msgEl.className = "error-msg";
+    msgEl.textContent = "Không đủ nguyên liệu! Hãy từ chối đơn này.";
+    return;
+  }
+  await Api.post("/api/staff/orders/" + orderId + "/accept", {});
+  loadOrders();
+}
+
+async function rejectOrder(orderId) {
+  const reason = prompt("Nhập lý do từ chối:", "Không đủ nguyên liệu");
+  if (reason === null) return;
+  await Api.post("/api/staff/orders/" + orderId + "/reject", { reason });
+  loadOrders();
+}
+
+async function setStatus(orderId, status) {
+  await Api.post("/api/staff/orders/" + orderId + "/status", { status });
+  loadOrders();
+}
+
+async function verifyPickup() {
+  const pickupCode = document.getElementById("pickupCodeInput").value.trim();
+  const msg = document.getElementById("pickupMsg");
+  try {
+    const order = await Api.post("/api/staff/verify-pickup", { pickupCode });
+    msg.className = "success-msg";
+    msg.textContent = "Đã giao đơn #" + order.orderCode + " cho khách.";
+    document.getElementById("pickupCodeInput").value = "";
+    loadOrders();
+  } catch (e) { msg.className = "error-msg"; msg.textContent = e.message; }
+}
+
+if (Session.getUser() && Session.getUser().role === "STAFF") {
+  document.getElementById("loginBox").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  loadOrders();
+}
+</script>
+</body>
+</html>

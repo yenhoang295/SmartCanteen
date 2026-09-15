@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Smart Canteen - Đơn của tôi</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>🍱 Smart Canteen</strong>
+  <div><a href="/menu.html">Menu</a><a href="/cart.html">Giỏ hàng</a></div>
+</header>
+<div class="container" style="max-width:700px">
+  <h1>Đơn hàng của tôi</h1>
+  <div id="orderList"></div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+const user = Session.requireLogin();
+
+async function loadOrders() {
+  const res = await Api.get("/api/orders?userId=" + user.userId);
+  const list = document.getElementById("orderList");
+  if (res.orders.length === 0) { list.innerHTML = "<p>Bạn chưa có đơn hàng nào.</p>"; return; }
+  list.innerHTML = res.orders.map(o => `
+    <div class="card">
+      <div class="row between">
+        <strong>Đơn #${o.orderCode}</strong>
+        <span class="tag ${o.status.toLowerCase()}">${statusLabel(o.status)}</span>
+      </div>
+      <p style="font-size:14px">Khung giờ: ${o.slotStart} - ${o.slotEnd} · Mã nhận hàng: <strong>${o.pickupCode}</strong></p>
+      <ul style="font-size:14px;padding-left:18px">
+        ${o.items.map(it => `<li>${it.itemName} x ${it.quantity} ${it.note ? '(' + it.note + ')' : ''}</li>`).join("")}
+      </ul>
+      <div class="row between">
+        <strong>${money(o.totalAmount)}</strong>
+        <div class="row">
+          ${o.paymentStatus === 'UNPAID' ? `<button onclick="pay(${o.orderId})">Thanh toán (${o.paymentMethod})</button>` : '<span class="tag completed">Đã thanh toán</span>'}
+          ${o.status === 'PENDING' ? `<button class="danger" onclick="cancelOrder(${o.orderId})">Hủy đơn</button>` : ''}
+        </div>
+      </div>
+      ${o.status === 'REJECTED' ? `<p class="error-msg">Lý do từ chối: ${o.rejectReason || ''}</p>` : ''}
+    </div>`).join("");
+}
+
+async function pay(orderId) {
+  await Api.post("/api/orders/" + orderId + "/pay", {});
+  loadOrders();
+}
+
+async function cancelOrder(orderId) {
+  try {
+    await Api.post("/api/orders/" + orderId + "/cancel", {});
+    loadOrders();
+  } catch (e) { alert(e.message); }
+}
+
+loadOrders();
+setInterval(loadOrders, 15000);
+</script>
+</body>
+</html>
