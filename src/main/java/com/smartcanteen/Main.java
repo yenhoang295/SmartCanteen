@@ -28,5 +28,6 @@ public class Main {
         System.out.println(" Smart Canteen dang chay tai http://localhost:" + port);
         System.out.println(" Nhan Ctrl+C de dung server");
         System.out.println("=================================================");
+        Thread.currentThread().join();
     }
 }
